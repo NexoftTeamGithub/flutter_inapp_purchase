@@ -117,6 +117,7 @@ class IAPItem {
         'title: $title, '
         'description: $description, '
         'introductoryPrice: $introductoryPrice, '
+        'introductoryPricePaymentModeIOS: $introductoryPrice, '
         'subscriptionPeriodNumberIOS: $subscriptionPeriodNumberIOS, '
         'subscriptionPeriodUnitIOS: $subscriptionPeriodUnitIOS, '
         'introductoryPricePaymentModeIOS: $introductoryPricePaymentModeIOS, '

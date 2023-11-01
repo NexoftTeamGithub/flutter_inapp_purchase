@@ -203,14 +203,14 @@ class FlutterInappPurchase {
       final dynamic getInappPurchaseHistory = await _channel.invokeMethod(
         'getPurchaseHistoryByType',
         <String, dynamic>{
-          'type': _TypeInApp.inapp.name, // describeEnum 대신 name 속성 사용
+          'type': describeEnum(_TypeInApp.inapp),
         },
       );
 
       final dynamic getSubsPurchaseHistory = await _channel.invokeMethod(
         'getPurchaseHistoryByType',
         <String, dynamic>{
-          'type': _TypeInApp.subs.name, // describeEnum 대신 name 속성 사용
+          'type': describeEnum(_TypeInApp.subs),
         },
       );
 
@@ -242,14 +242,14 @@ class FlutterInappPurchase {
       dynamic result1 = await _channel.invokeMethod(
         'getAvailableItemsByType',
         <String, dynamic>{
-          'type': _TypeInApp.inapp.name,
+          'type': describeEnum(_TypeInApp.inapp),
         },
       );
 
       dynamic result2 = await _channel.invokeMethod(
         'getAvailableItemsByType',
         <String, dynamic>{
-          'type': _TypeInApp.subs.name,
+          'type': describeEnum(_TypeInApp.subs),
         },
       );
       return extractPurchased(result1)! + extractPurchased(result2)!;
@@ -276,7 +276,7 @@ class FlutterInappPurchase {
       int? offerTokenIndex}) async {
     if (_platform.isAndroid) {
       return await _channel.invokeMethod('buyItemByType', <String, dynamic>{
-        'type': _TypeInApp.inapp.name,
+        'type': describeEnum(_TypeInApp.inapp),
         'productId': productId,
         'prorationMode': -1,
         'obfuscatedAccountId': obfuscatedAccountId,
@@ -313,7 +313,7 @@ class FlutterInappPurchase {
   }) async {
     if (_platform.isAndroid) {
       return await _channel.invokeMethod('buyItemByType', <String, dynamic>{
-        'type': _TypeInApp.subs.name,
+        'type': describeEnum(_TypeInApp.subs),
         'productId': productId,
         'prorationMode': prorationModeAndroid ?? -1,
         'obfuscatedAccountId': obfuscatedAccountIdAndroid,

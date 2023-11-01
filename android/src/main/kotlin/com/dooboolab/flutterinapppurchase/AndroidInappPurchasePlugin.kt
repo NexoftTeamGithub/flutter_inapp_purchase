@@ -78,51 +78,42 @@ class AndroidInappPurchasePlugin internal constructor() : MethodCallHandler,
                 safeChannel.success("Already started. Call endConnection method if you want to start over.")
                 return
             }
-            
-            billingClient = BillingClient.newBuilder(context ?: return).apply {
-                setListener(purchasesUpdatedListener)
-                enablePendingPurchases()
-            }.build()
-            
-            billingClient?.startConnection(object : BillingClientStateListener {
+            billingClient = BillingClient.newBuilder(context!!).setListener(purchasesUpdatedListener)
+                    .enablePendingPurchases()
+                    .build()
+            billingClient!!.startConnection(object : BillingClientStateListener {
                 private var alreadyFinished = false
-            
                 override fun onBillingSetupFinished(billingResult: BillingResult) {
-                    if (alreadyFinished) return
-                    alreadyFinished = true
-            
                     try {
-                        val isConnected = billingResult.responseCode == BillingClient.BillingResponseCode.OK
-                        updateConnectionStatus(isConnected)
-            
-                        val resultMessage = if (isConnected) {
-                            "Billing client ready"
+                        val responseCode = billingResult.responseCode
+                        if (responseCode == BillingClient.BillingResponseCode.OK) {
+                            val item = JSONObject()
+                            item.put("connected", true)
+                            safeChannel.invokeMethod("connection-updated", item.toString())
+                            if (alreadyFinished) return
+                            alreadyFinished = true
+                            safeChannel.success("Billing client ready")
+                            return
                         } else {
-                            "responseCode: ${billingResult.responseCode}"
-                        }
-            
-                        if (isConnected) {
-                            safeChannel.success(resultMessage)
-                        } else {
-                            safeChannel.error(call.method, resultMessage, "")
+                            val item = JSONObject()
+                            item.put("connected", false)
+                            safeChannel.invokeMethod("connection-updated", item.toString())
+                            if (alreadyFinished) return
+                            alreadyFinished = true
+                            safeChannel.error(call.method, "responseCode: $responseCode", "")
+                            return
                         }
                     } catch (je: JSONException) {
                         je.printStackTrace()
                     }
                 }
-            
+
                 override fun onBillingServiceDisconnected() {
-                    if (alreadyFinished) return
-                    alreadyFinished = true
-                    updateConnectionStatus(false)
-                }
-            
-                private fun updateConnectionStatus(isConnected: Boolean) {
                     try {
-                        val item = JSONObject().apply {
-                            put("connected", isConnected)
-                        }
+                        val item = JSONObject()
+                        item.put("connected", false)
                         safeChannel.invokeMethod("connection-updated", item.toString())
+                        return
                     } catch (je: JSONException) {
                         je.printStackTrace()
                     }
@@ -437,53 +428,42 @@ class AndroidInappPurchasePlugin internal constructor() : MethodCallHandler,
                         item.put("introductoryPrice", productDetails.oneTimePurchaseOfferDetails!!.formattedPrice)
                     }
 
-                    if (productDetails.productType == BillingClient.ProductType.INAPP) {
-                        val oneTimePurchaseOfferDetails = productDetails.oneTimePurchaseOfferDetails
+                    // These generalized values are derived from the first pricing object, mainly for backwards compatibility
+                    // It would be better to use the actual objects in PricingPhases and SubscriptionOffers
 
-                        if (oneTimePurchaseOfferDetails != null) {
-                            item.put("price", (oneTimePurchaseOfferDetails.priceAmountMicros / 1000000f).toString())
-                            item.put("currency", oneTimePurchaseOfferDetails.priceCurrencyCode)
-                            item.put("localizedPrice", oneTimePurchaseOfferDetails.formattedPrice)
-                        }
-                    } else if (productDetails.productType == BillingClient.ProductType.SUBS) {
-                        // These generalized values are derived from the first pricing object, mainly for backwards compatibility
-                        // It would be better to use the actual objects in PricingPhases and SubscriptionOffers
-    
-                        // Get first subscription offer
-                        val firstProductInfo = productDetails.subscriptionOfferDetails?.find { offer -> offer.offerId == null }
-                        if (firstProductInfo != null && firstProductInfo.pricingPhases.pricingPhaseList[0] != null) {
-                            val defaultPricingPhase = firstProductInfo.pricingPhases.pricingPhaseList[0]
-                            item.put("price", (defaultPricingPhase.priceAmountMicros / 1000000f).toString())
-                            item.put("currency", defaultPricingPhase.priceCurrencyCode)
-                            item.put("localizedPrice", defaultPricingPhase.formattedPrice)
-                            item.put("subscriptionPeriodAndroid", defaultPricingPhase.billingPeriod)
-                        }
-    
-                        val subs = JSONArray()
-                        if (productDetails.subscriptionOfferDetails != null ) {
-                            for (offer in productDetails.subscriptionOfferDetails!!) {
-                                val offerItem = JSONObject()
-                                offerItem.put("offerId", offer.offerId)
-                                offerItem.put("basePlanId", offer.basePlanId)
-                                offerItem.put("offerToken", offer.offerToken)
-                                val pricingPhases = JSONArray()
-                                for (pricing in offer.pricingPhases.pricingPhaseList) {
-                                    val pricingPhase = JSONObject()
-                                    pricingPhase.put("price", (pricing.priceAmountMicros / 1000000f).toString())
-                                    pricingPhase.put("formattedPrice", pricing.formattedPrice)
-                                    pricingPhase.put("billingPeriod", pricing.billingPeriod)
-                                    pricingPhase.put("currencyCode", pricing.priceCurrencyCode)
-                                    pricingPhase.put("recurrenceMode", pricing.recurrenceMode)
-                                    pricingPhase.put("billingCycleCount", pricing.billingCycleCount)
-                                    pricingPhases.put(pricingPhase)
-                                }
-                                offerItem.put("pricingPhases", pricingPhases)
-                                subs.put(offerItem)
-                            }
-                        }
-                        item.put("subscriptionOffers", subs)
+                    // Get first subscription offer
+                    val firstProductInfo = productDetails.subscriptionOfferDetails?.find { offer -> offer.offerId == null }
+                    if (firstProductInfo != null && firstProductInfo.pricingPhases.pricingPhaseList[0] != null) {
+                        val defaultPricingPhase = firstProductInfo.pricingPhases.pricingPhaseList[0]
+                        item.put("price", (defaultPricingPhase.priceAmountMicros / 1000000f).toString())
+                        item.put("currency", defaultPricingPhase.priceCurrencyCode)
+                        item.put("localizedPrice", defaultPricingPhase.formattedPrice)
+                        item.put("subscriptionPeriodAndroid", defaultPricingPhase.billingPeriod)
                     }
 
+                    val subs = JSONArray()
+                    if (productDetails.subscriptionOfferDetails != null ) {
+                        for (offer in productDetails.subscriptionOfferDetails!!) {
+                            val offerItem = JSONObject()
+                            offerItem.put("offerId", offer.offerId)
+                            offerItem.put("basePlanId", offer.basePlanId)
+                            offerItem.put("offerToken", offer.offerToken)
+                            val pricingPhases = JSONArray()
+                            for (pricing in offer.pricingPhases.pricingPhaseList) {
+                                val pricingPhase = JSONObject()
+                                pricingPhase.put("price", (pricing.priceAmountMicros / 1000000f).toString())
+                                pricingPhase.put("formattedPrice", pricing.formattedPrice)
+                                pricingPhase.put("billingPeriod", pricing.billingPeriod)
+                                pricingPhase.put("currencyCode", pricing.priceCurrencyCode)
+                                pricingPhase.put("recurrenceMode", pricing.recurrenceMode)
+                                pricingPhase.put("billingCycleCount", pricing.billingCycleCount)
+                                pricingPhases.put(pricingPhase)
+                            }
+                            offerItem.put("pricingPhases", pricingPhases)
+                            subs.put(offerItem)
+                        }
+                    }
+                    item.put("subscriptionOffers", subs)
                     items.put(item)
                 }
                 safeChannel.success(items.toString())
